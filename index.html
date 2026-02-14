@@ -1,0 +1,1359 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Light4D: Training-Free Extreme Viewpoint 4D Video Relighting</title>
+    <meta name="description" content="Light4D: Training-Free Extreme Viewpoint 4D Video Relighting">
+    <meta name="keywords" content="Video Generation, 4D Generation">
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;700&family=Noto+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/jpswalsh/academicons@1/css/academicons.min.css">
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Google Sans', 'Noto Sans', 'sans-serif'],
+                    },
+                    colors: {
+                        primary: '#1a1a1a',
+                        secondary: '#4a4a4a',
+                        accent: '#2563eb',
+                    }
+                }
+            }
+        }
+    </script>
+
+    <!-- Analytics -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-PYVRSFMDRL"></script>
+    <script>
+        window.dataLayer = window.dataLayer || [];
+        function gtag() { dataLayer.push(arguments); }
+        gtag('js', new Date());
+        gtag('config', 'G-PYVRSFMDRL');
+    </script>
+    
+    <style>
+        /* Gallery Card Styles */
+        .gallery-card {
+            position: absolute;
+            width: 29%; 
+            aspect-ratio: 1248 / 704;
+            top: 50%;
+            transform: translateY(-50%) translateX(-50%);
+            border-radius: 0.5rem;
+            overflow: hidden;
+            transition: all 0.6s cubic-bezier(0.25, 0.8, 0.25, 1);
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+
+        /* Empty placeholder style */
+        .gallery-card.empty {
+            box-shadow: none;
+            background: transparent;
+            pointer-events: none;
+        }
+
+        /* Slot 1: Left */
+        .gallery-card.left {
+            left: 19.5%;
+            scale: 1.0;
+            opacity: 1;
+            z-index: 20;
+        }
+
+        /* Slot 2: Center (Active) */
+        .gallery-card.active {
+            left: 50%;
+            scale: 1.0; 
+            opacity: 1;
+            z-index: 20;
+        }
+
+        /* Slot 3: Right */
+        .gallery-card.right {
+            left: 80.5%;
+            scale: 1.0;
+            opacity: 1;
+            z-index: 20;
+        }
+
+        /* Hidden Left (Off-screen) */
+        .gallery-card.hidden-left {
+            left: -11%;
+            scale: 0.9;
+            opacity: 0;
+            z-index: 10;
+        }
+
+        /* Hidden Right (Off-screen) */
+        .gallery-card.hidden-right {
+            left: 111%;
+            scale: 0.9;
+            opacity: 0;
+            z-index: 10;
+        }
+
+        /* Bounce Animations for Non-Circular Feedback */
+        @keyframes bouncePrev {
+            0%, 100% { transform: translateX(0); }
+            50% { transform: translateX(40px); } /* Bounces Right to show "Start" */
+        }
+        @keyframes bounceNext {
+            0%, 100% { transform: translateX(0); }
+            50% { transform: translateX(-40px); } /* Bounces Left to show "End" */
+        }
+
+        .animate-bounce-prev {
+            animation: bouncePrev 0.4s ease-in-out;
+        }
+        .animate-bounce-next {
+            animation: bounceNext 0.4s ease-in-out;
+        }
+
+        /* ========================================== */
+        /* PLAYGROUND SPECIFIC STYLES                 */
+        /* ========================================== */
+        .playground-btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            padding: 0.6rem 1.2rem;
+            background-color: white;
+            color: #374151; /* gray-700 */
+            border: 1px solid #e5e7eb; /* gray-200 */
+            border-radius: 9999px; /* full rounded */
+            font-weight: 500;
+            font-size: 0.85rem;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            white-space: nowrap;
+            cursor: pointer;
+            z-index: 30;
+        }
+
+        /* Hover State - Removed scale to fix shift issue */
+        .playground-btn:hover {
+            border-color: #d1d5db;
+            box-shadow: 0 8px 16px -4px rgba(0, 0, 0, 0.1);
+            color: #111827; /* gray-900 */
+        }
+
+        /* Active State (Black like the 'Paper' button) - Removed scale to fix shift issue */
+        .playground-btn.active {
+            background-color: #000000;
+            color: white;
+            border-color: #000000;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+        }
+
+        /* Dotted connecting lines (Desktop only) */
+        @media (min-width: 768px) {
+            .connector-line {
+                position: absolute;
+                z-index: 5;
+                border: 1px dashed #e5e7eb;
+                pointer-events: none;
+            }
+        }
+    </style>
+</head>
+<body class="font-sans antialiased overflow-x-hidden bg-gray-50">
+
+    <!-- ========================================== -->
+    <!-- UPPER HALF: WHITE BACKGROUND (Header)      -->
+    <!-- ========================================== -->
+    <header class="pt-16 pb-12 bg-white border-b border-gray-100">
+        <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+            <!-- Hero Branding -->
+            <div class="mb-10">
+                <h2 class="text-6xl md:text-8xl font-bold tracking-tight mb-4">
+                    <span class="bg-clip-text text-transparent bg-gradient-to-r from-[#4F46E5] to-[#7C3AED]">Light4D</span>
+                </h2>
+                <p class="text-2xl md:text-3xl text-gray-700 font-medium mb-6">
+                    Training-Free Extreme Viewpoint 4D Video Relighting
+                </p>
+                <!-- <p class="text-4xl md:text-2xl font-bold tracking-tight text-black mb-6 leading-tight">
+                Conference 2026
+                </p> -->
+            </div>
+
+            <!-- Authors -->
+            <div class="flex flex-wrap justify-center gap-x-8 gap-y-2 text-lg text-gray-800 mb-4 font-normal">
+                <a href="#" class="hover:text-accent transition-colors">Zhenghuang Wu<sup>*</sup></a>
+                <a href="#" class="hover:text-accent transition-colors">Kang Chen<sup>*</sup></a>
+                <a href="https://steve-zeyu-zhang.github.io/" class="hover:text-accent transition-colors">Zeyu Zhang<sup>*†</sup></a>
+                <a href="https://ha0tang.github.io/" class="hover:text-accent transition-colors">Hao Tang<sup>‡</sup></a>
+            </div>
+
+            <!-- Affiliations -->
+            <div class="flex flex-wrap justify-center gap-x-6 gap-y-2 text-sm text-gray-600 mb-4">
+                <span>School of Computer Science, Peking University</span>
+            </div>
+            
+            <div class="text-sm text-gray-400 mb-8">
+                <sup>*</sup>Equal contribution.
+                <sup>†</sup>Project lead.
+                <sup>‡</sup>Corresponding author.
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="flex justify-center gap-4">
+                <!-- arXiv Button (White with border) -->
+                <a href="https://arxiv.org/abs/2602.11769" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-2 px-6 py-2 bg-white text-gray-800 border border-gray-200 rounded-full font-medium hover:bg-gray-50 transition-all shadow-sm">
+                    <i class="ai ai-arxiv"></i>
+                    <span>arXiv</span>
+                </a>
+                <!-- Code Button (White with border) -->
+                <a href="https://github.com/AIGeeksGroup/Light4D" class="inline-flex items-center gap-2 px-6 py-2 bg-white text-gray-800 border border-gray-200 rounded-full font-medium hover:bg-gray-50 transition-all shadow-sm">
+                    <i class="fab fa-github"></i>
+                    <span>Code</span>
+                </a>
+            </div>
+        </div>
+    </header>
+
+    <!-- ========================================== -->
+    <!-- visualization -->
+    <!-- ========================================== -->
+    <main class="w-full py-16 bg-gray-50 space-y-24">
+
+
+
+        <!-- ========================================== -->
+        <!-- 30 compare              -->
+        <!-- ========================================== -->
+        <section class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="text-center mb-6">
+                <h2 class="text-3xl md:text-4xl font-bold text-gray-900 mb-4 tracking-tight">
+                    30° Comparison
+                </h2>
+            </div>
+
+            <div class="space-y-10">
+                <div class="grid grid-cols-1 md:grid-cols-[240px_repeat(3,minmax(0,1fr))] gap-6 items-center">
+                    <div class="flex items-center justify-center">
+                        <div class="flex flex-col bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden w-full">
+                            <video autoplay controls playsinline muted loop class="w-full object-cover bg-black">
+                                <source src="static/30_compare/Ast/Ast.mp4" type="video/mp4">
+                            </video>
+                            <span class="text-center text-xs uppercase tracking-wider text-gray-500 py-2">Wan2.1</span>
+                        </div>
+                    </div>
+                    <div class="flex flex-col gap-6 justify-center">
+                        <div class="flex flex-col bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+                            <video autoplay controls playsinline muted loop class="w-full object-cover bg-black">
+                                <source src="static/30_compare/Ast/Ast_EX4D_30.mp4" type="video/mp4">
+                            </video>
+                            <span class="text-center text-xs uppercase tracking-wider text-gray-500 py-2">EX-4D</span>
+                        </div>
+                        <div class="flex flex-col bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+                            <video autoplay controls playsinline muted loop class="w-full object-cover bg-black">
+                                <source src="static/30_compare/Ast/Ast_EX4D_LAV_30.mp4" type="video/mp4">
+                            </video>
+                            <span class="text-center text-xs uppercase tracking-wider text-gray-500 py-2">EX-4D → LAV</span>
+                        </div>
+                    </div>
+                    <div class="flex flex-col gap-6 justify-center">
+                        <div class="flex flex-col bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+                            <video autoplay controls playsinline muted loop class="w-full object-cover bg-black">
+                                <source src="static/30_compare/Ast/Ast_LAV_EX4D_30.mp4" type="video/mp4">
+                            </video>
+                            <span class="text-center text-xs uppercase tracking-wider text-gray-500 py-2">LAV → EX-4D</span>
+                        </div>
+                        <div class="flex flex-col bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+                            <video autoplay controls playsinline muted loop class="w-full object-cover bg-black">
+                                <source src="static/30_compare/Ast/Ast_ICLIGHT_30.mp4" type="video/mp4">
+                            </video>
+                            <span class="text-center text-xs uppercase tracking-wider text-gray-500 py-2">IC-Light</span>
+                        </div>
+                    </div>
+                    <div class="flex flex-col gap-6 justify-center">
+                        <div class="flex flex-col bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+                            <video autoplay controls playsinline muted loop class="w-full object-cover bg-black">
+                                <source src="static/30_compare/Ast/Ast_LightX_30.mp4" type="video/mp4">
+                            </video>
+                            <span class="text-center text-xs uppercase tracking-wider text-gray-500 py-2">Light-X</span>
+                        </div>
+                        <div class="flex flex-col bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+                            <video autoplay controls playsinline muted loop class="w-full object-cover bg-black">
+                                <source src="static/30_compare/Ast/Ast30.mp4" type="video/mp4">
+                            </video>
+                            <span class="text-center text-xs uppercase tracking-wider text-gray-500 py-2">Light4D</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-[240px_repeat(3,minmax(0,1fr))] gap-6 items-center">
+                    <div class="flex items-center justify-center">
+                        <div class="flex flex-col bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden w-full">
+                            <video autoplay controls playsinline muted loop class="w-full object-cover bg-black">
+                                <source src="static/30_compare/Car/Car.mp4" type="video/mp4">
+                            </video>
+                            <span class="text-center text-xs uppercase tracking-wider text-gray-500 py-2">Wan2.1</span>
+                        </div>
+                    </div>
+                    <div class="flex flex-col gap-6 justify-center">
+                        <div class="flex flex-col bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+                            <video autoplay controls playsinline muted loop class="w-full object-cover bg-black">
+                                <source src="static/30_compare/Car/Car_EX4D_30.mp4" type="video/mp4">
+                            </video>
+                            <span class="text-center text-xs uppercase tracking-wider text-gray-500 py-2">EX-4D</span>
+                        </div>
+                        <div class="flex flex-col bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+                            <video autoplay controls playsinline muted loop class="w-full object-cover bg-black">
+                                <source src="static/30_compare/Car/Car_EX4D_LAV_30.mp4" type="video/mp4">
+                            </video>
+                            <span class="text-center text-xs uppercase tracking-wider text-gray-500 py-2">EX-4D → LAV</span>
+                        </div>
+                    </div>
+                    <div class="flex flex-col gap-6 justify-center">
+                        <div class="flex flex-col bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+                            <video autoplay controls playsinline muted loop class="w-full object-cover bg-black">
+                                <source src="static/30_compare/Car/Car_LAV_EX4D_30.mp4" type="video/mp4">
+                            </video>
+                            <span class="text-center text-xs uppercase tracking-wider text-gray-500 py-2">LAV → EX-4D</span>
+                        </div>
+                        <div class="flex flex-col bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+                            <video autoplay controls playsinline muted loop class="w-full object-cover bg-black">
+                                <source src="static/30_compare/Car/Car_ICLIGHT_30.mp4" type="video/mp4">
+                            </video>
+                            <span class="text-center text-xs uppercase tracking-wider text-gray-500 py-2">IC-Light</span>
+                        </div>
+                    </div>
+                    <div class="flex flex-col gap-6 justify-center">
+                        <div class="flex flex-col bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+                            <video autoplay controls playsinline muted loop class="w-full object-cover bg-black">
+                                <source src="static/30_compare/Car/Car_LightX_30.mp4" type="video/mp4">
+                            </video>
+                            <span class="text-center text-xs uppercase tracking-wider text-gray-500 py-2">Light-X</span>
+                        </div>
+                        <div class="flex flex-col bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+                            <video autoplay controls playsinline muted loop class="w-full object-cover bg-black">
+                                <source src="static/30_compare/Car/Car30.mp4" type="video/mp4">
+                            </video>
+                            <span class="text-center text-xs uppercase tracking-wider text-gray-500 py-2">Light4D</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-[240px_repeat(3,minmax(0,1fr))] gap-6 items-center">
+                    <div class="flex items-center justify-center">
+                        <div class="flex flex-col bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden w-full">
+                            <video autoplay controls playsinline muted loop class="w-full object-cover bg-black">
+                                <source src="static/30_compare/Coin/Coin.mp4" type="video/mp4">
+                            </video>
+                            <span class="text-center text-xs uppercase tracking-wider text-gray-500 py-2">Wan2.1</span>
+                        </div>
+                    </div>
+                    <div class="flex flex-col gap-6 justify-center">
+                        <div class="flex flex-col bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+                            <video autoplay controls playsinline muted loop class="w-full object-cover bg-black">
+                                <source src="static/30_compare/Coin/Coin_EX4D_30.mp4" type="video/mp4">
+                            </video>
+                            <span class="text-center text-xs uppercase tracking-wider text-gray-500 py-2">EX-4D</span>
+                        </div>
+                        <div class="flex flex-col bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+                            <video autoplay controls playsinline muted loop class="w-full object-cover bg-black">
+                                <source src="static/30_compare/Coin/Coin_EX4D_LAV_30.mp4" type="video/mp4">
+                            </video>
+                            <span class="text-center text-xs uppercase tracking-wider text-gray-500 py-2">EX-4D → LAV</span>
+                        </div>
+                    </div>
+                    <div class="flex flex-col gap-6 justify-center">
+                        <div class="flex flex-col bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+                            <video autoplay controls playsinline muted loop class="w-full object-cover bg-black">
+                                <source src="static/30_compare/Coin/Coin_LAV_EX4D_30.mp4" type="video/mp4">
+                            </video>
+                            <span class="text-center text-xs uppercase tracking-wider text-gray-500 py-2">LAV → EX-4D</span>
+                        </div>
+                        <div class="flex flex-col bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+                            <video autoplay controls playsinline muted loop class="w-full object-cover bg-black">
+                                <source src="static/30_compare/Coin/Coin_ICLIGHT.mp4" type="video/mp4">
+                            </video>
+                            <span class="text-center text-xs uppercase tracking-wider text-gray-500 py-2">IC-Light</span>
+                        </div>
+                    </div>
+                    <div class="flex flex-col gap-6 justify-center">
+                        <div class="flex flex-col bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+                            <video autoplay controls playsinline muted loop class="w-full object-cover bg-black">
+                                <source src="static/30_compare/Coin/Coin_LightX_30.mp4" type="video/mp4">
+                            </video>
+                            <span class="text-center text-xs uppercase tracking-wider text-gray-500 py-2">Light-X</span>
+                        </div>
+                        <div class="flex flex-col bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+                            <video autoplay controls playsinline muted loop class="w-full object-cover bg-black">
+                                <source src="static/30_compare/Coin/Coin30.mp4" type="video/mp4">
+                            </video>
+                            <span class="text-center text-xs uppercase tracking-wider text-gray-500 py-2">Light4D</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </section>
+
+
+        <!-- ========================================== -->
+        <!-- 90 compare              -->
+        <!-- ========================================== -->
+        <section class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="text-center mb-6">
+                <h2 class="text-3xl md:text-4xl font-bold text-gray-900 mb-4 tracking-tight">
+                    90° Comparison
+                </h2>
+            </div>
+
+            <div class="space-y-10">
+                <div class="grid grid-cols-1 md:grid-cols-[240px_repeat(3,minmax(0,1fr))] gap-6 items-center">
+                    <div class="flex items-center justify-center">
+                        <div class="flex flex-col bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden w-full">
+                            <video autoplay controls playsinline muted loop class="w-full object-cover bg-black">
+                                <source src="static/90_compare/ADb/ADb.mp4" type="video/mp4">
+                            </video>
+                            <span class="text-center text-xs uppercase tracking-wider text-gray-500 py-2">Wan2.1</span>
+                        </div>
+                    </div>
+                    <div class="flex flex-col gap-6 justify-center">
+                        <div class="flex flex-col bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+                            <video autoplay controls playsinline muted loop class="w-full object-cover bg-black">
+                                <source src="static/90_compare/ADb/ADb_EX4D_90.mp4" type="video/mp4">
+                            </video>
+                            <span class="text-center text-xs uppercase tracking-wider text-gray-500 py-2">EX-4D</span>
+                        </div>
+                        <div class="flex flex-col bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+                            <video autoplay controls playsinline muted loop class="w-full object-cover bg-black">
+                                <source src="static/90_compare/ADb/ADb_EX4D_LAV_90.mp4" type="video/mp4">
+                            </video>
+                            <span class="text-center text-xs uppercase tracking-wider text-gray-500 py-2">EX-4D → LAV</span>
+                        </div>
+                    </div>
+                    <div class="flex flex-col gap-6 justify-center">
+                        <div class="flex flex-col bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+                            <video autoplay controls playsinline muted loop class="w-full object-cover bg-black">
+                                <source src="static/90_compare/ADb/ADb_LAV_EX4D_90.mp4" type="video/mp4">
+                            </video>
+                            <span class="text-center text-xs uppercase tracking-wider text-gray-500 py-2">LAV → EX-4D</span>
+                        </div>
+                        <div class="flex flex-col bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+                            <video autoplay controls playsinline muted loop class="w-full object-cover bg-black">
+                                <source src="static/90_compare/ADb/ADb_ICLIGHT_90.mp4" type="video/mp4">
+                            </video>
+                            <span class="text-center text-xs uppercase tracking-wider text-gray-500 py-2">IC-Light</span>
+                        </div>
+                    </div>
+                    <div class="flex flex-col gap-6 justify-center">
+                        <div class="flex flex-col bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+                            <video autoplay controls playsinline muted loop class="w-full object-cover bg-black">
+                                <source src="static/90_compare/ADb/ADb_LightX_90.mp4" type="video/mp4">
+                            </video>
+                            <span class="text-center text-xs uppercase tracking-wider text-gray-500 py-2">Light-X</span>
+                        </div>
+                        <div class="flex flex-col bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+                            <video autoplay controls playsinline muted loop class="w-full object-cover bg-black">
+                                <source src="static/90_compare/ADb/ADb90.mp4" type="video/mp4">
+                            </video>
+                            <span class="text-center text-xs uppercase tracking-wider text-gray-500 py-2">Light4D</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </section>
+
+
+        <!-- ========================================== -->
+        <!-- 180 compare              -->
+        <!-- ========================================== -->
+        <section class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="text-center mb-6">
+                <h2 class="text-3xl md:text-4xl font-bold text-gray-900 mb-4 tracking-tight">
+                    180° Comparison
+                </h2>
+            </div>
+
+            <div class="space-y-10">
+                <div class="grid grid-cols-1 md:grid-cols-[240px_repeat(3,minmax(0,1fr))] gap-6 items-center">
+                    <div class="flex items-center justify-center">
+                        <div class="flex flex-col bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden w-full">
+                            <video autoplay controls playsinline muted loop class="w-full object-cover bg-black">
+                                <source src="static/180_compare/Bird/Bird.mp4" type="video/mp4">
+                            </video>
+                            <span class="text-center text-xs uppercase tracking-wider text-gray-500 py-2">Wan2.1</span>
+                        </div>
+                    </div>
+                    <div class="flex flex-col gap-6 justify-center">
+                        <div class="flex flex-col bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+                            <video autoplay controls playsinline muted loop class="w-full object-cover bg-black">
+                                <source src="static/180_compare/Bird/Bird_EX4D_180.mp4" type="video/mp4">
+                            </video>
+                            <span class="text-center text-xs uppercase tracking-wider text-gray-500 py-2">EX-4D</span>
+                        </div>
+                        <div class="flex flex-col bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+                            <video autoplay controls playsinline muted loop class="w-full object-cover bg-black">
+                                <source src="static/180_compare/Bird/Bird_EX4D_LAV_180.mp4" type="video/mp4">
+                            </video>
+                            <span class="text-center text-xs uppercase tracking-wider text-gray-500 py-2">EX-4D → LAV</span>
+                        </div>
+                    </div>
+                    <div class="flex flex-col gap-6 justify-center">
+                        <div class="flex flex-col bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+                            <video autoplay controls playsinline muted loop class="w-full object-cover bg-black">
+                                <source src="static/180_compare/Bird/Bird_LAV_EX4D_180.mp4" type="video/mp4">
+                            </video>
+                            <span class="text-center text-xs uppercase tracking-wider text-gray-500 py-2">LAV → EX-4D</span>
+                        </div>
+                        <div class="flex flex-col bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+                            <video autoplay controls playsinline muted loop class="w-full object-cover bg-black">
+                                <source src="static/180_compare/Bird/Bird_ICLIGHT_180.mp4" type="video/mp4">
+                            </video>
+                            <span class="text-center text-xs uppercase tracking-wider text-gray-500 py-2">IC-Light</span>
+                        </div>
+                    </div>
+                    <div class="flex flex-col gap-6 justify-center">
+                        <div class="flex flex-col bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+                            <video autoplay controls playsinline muted loop class="w-full object-cover bg-black">
+                                <source src="static/180_compare/Bird/Bird_LightX_180.mp4" type="video/mp4">
+                            </video>
+                            <span class="text-center text-xs uppercase tracking-wider text-gray-500 py-2">Light-X</span>
+                        </div>
+                        <div class="flex flex-col bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+                            <video autoplay controls playsinline muted loop class="w-full object-cover bg-black">
+                                <source src="static/180_compare/Bird/Bird180.mp4" type="video/mp4">
+                            </video>
+                            <span class="text-center text-xs uppercase tracking-wider text-gray-500 py-2">Light4D</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-[240px_repeat(3,minmax(0,1fr))] gap-6 items-center">
+                    <div class="flex items-center justify-center">
+                        <div class="flex flex-col bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden w-full">
+                            <video autoplay controls playsinline muted loop class="w-full object-cover bg-black">
+                                <source src="static/180_compare/Turtle/Turtle.mp4" type="video/mp4">
+                            </video>
+                            <span class="text-center text-xs uppercase tracking-wider text-gray-500 py-2">Wan2.1</span>
+                        </div>
+                    </div>
+                    <div class="flex flex-col gap-6 justify-center">
+                        <div class="flex flex-col bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+                            <video autoplay controls playsinline muted loop class="w-full object-cover bg-black">
+                                <source src="static/180_compare/Turtle/Turtle_EX4D_180.mp4" type="video/mp4">
+                            </video>
+                            <span class="text-center text-xs uppercase tracking-wider text-gray-500 py-2">EX-4D</span>
+                        </div>
+                        <div class="flex flex-col bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+                            <video autoplay controls playsinline muted loop class="w-full object-cover bg-black">
+                                <source src="static/180_compare/Turtle/Turtle_EX4D_LAV_180.mp4" type="video/mp4">
+                            </video>
+                            <span class="text-center text-xs uppercase tracking-wider text-gray-500 py-2">EX-4D → LAV</span>
+                        </div>
+                    </div>
+                    <div class="flex flex-col gap-6 justify-center">
+                        <div class="flex flex-col bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+                            <video autoplay controls playsinline muted loop class="w-full object-cover bg-black">
+                                <source src="static/180_compare/Turtle/Turtle_LAV_EX4D_180.mp4" type="video/mp4">
+                            </video>
+                            <span class="text-center text-xs uppercase tracking-wider text-gray-500 py-2">LAV → EX-4D</span>
+                        </div>
+                        <div class="flex flex-col bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+                            <video autoplay controls playsinline muted loop class="w-full object-cover bg-black">
+                                <source src="static/180_compare/Turtle/Turtle_ICLIGHT_180.mp4" type="video/mp4">
+                            </video>
+                            <span class="text-center text-xs uppercase tracking-wider text-gray-500 py-2">IC-Light</span>
+                        </div>
+                    </div>
+                    <div class="flex flex-col gap-6 justify-center">
+                        <div class="flex flex-col bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+                            <video autoplay controls playsinline muted loop class="w-full object-cover bg-black">
+                                <source src="static/180_compare/Turtle/Turtle_LightX_180.mp4" type="video/mp4">
+                            </video>
+                            <span class="text-center text-xs uppercase tracking-wider text-gray-500 py-2">Light-X</span>
+                        </div>
+                        <div class="flex flex-col bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+                            <video autoplay controls playsinline muted loop class="w-full object-cover bg-black">
+                                <source src="static/180_compare/Turtle/Turtle180.mp4" type="video/mp4">
+                            </video>
+                            <span class="text-center text-xs uppercase tracking-wider text-gray-500 py-2">Light4D</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </section>
+
+
+        <!-- ========================================== -->
+        <!-- 30                  -->
+        <!-- ========================================== -->
+        <section class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="text-center mb-6">
+                <h2 class="text-3xl md:text-4xl font-bold text-gray-900 mb-4 tracking-tight">
+                    30° Visualization
+                </h2>
+            </div>
+
+            <div class="grid grid-cols-3 gap-4 text-xs uppercase tracking-widest text-gray-500 mb-3">
+                <span class="text-center font-bold">Wan2.1</span>
+                <span class="text-center font-bold">EX-4D</span>
+                <span class="text-center font-bold text-black">Light4D</span>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
+                <div class="flex flex-col bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+                    <video autoplay controls playsinline muted loop class="w-full object-cover bg-black">
+                        <source src="static/30/ADa/ADa.mp4" type="video/mp4">
+                    </video>
+                </div>
+                <div class="flex flex-col bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+                    <video autoplay controls playsinline muted loop class="w-full object-cover bg-black">
+                        <source src="static/30/ADa/ADa_EX4D_30.mp4" type="video/mp4">
+                    </video>
+                </div>
+                <div class="flex flex-col bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+                    <video autoplay controls playsinline muted loop class="w-full object-cover bg-black">
+                        <source src="static/30/ADa/ADa30.mp4" type="video/mp4">
+                    </video>
+                </div>
+                <div class="flex flex-col bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+                    <video autoplay controls playsinline muted loop class="w-full object-cover bg-black">
+                        <source src="static/30/ADd/ADd.mp4" type="video/mp4">
+                    </video>
+                </div>
+                <div class="flex flex-col bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+                    <video autoplay controls playsinline muted loop class="w-full object-cover bg-black">
+                        <source src="static/30/ADd/ADd_EX4D_30.mp4" type="video/mp4">
+                    </video>
+                </div>
+                <div class="flex flex-col bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+                    <video autoplay controls playsinline muted loop class="w-full object-cover bg-black">
+                        <source src="static/30/ADd/ADd30.mp4" type="video/mp4">
+                    </video>
+                </div>
+                <div class="flex flex-col bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+                    <video autoplay controls playsinline muted loop class="w-full object-cover bg-black">
+                        <source src="static/30/ADe/ADe.mp4" type="video/mp4">
+                    </video>
+                </div>
+                <div class="flex flex-col bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+                    <video autoplay controls playsinline muted loop class="w-full object-cover bg-black">
+                        <source src="static/30/ADe/ADe_EX4D_30.mp4" type="video/mp4">
+                    </video>
+                </div>
+                <div class="flex flex-col bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+                    <video autoplay controls playsinline muted loop class="w-full object-cover bg-black">
+                        <source src="static/30/ADe/ADe30.mp4" type="video/mp4">
+                    </video>
+                </div>
+                <div class="flex flex-col bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+                    <video autoplay controls playsinline muted loop class="w-full object-cover bg-black">
+                        <source src="static/30/ADf/ADf.mp4" type="video/mp4">
+                    </video>
+                </div>
+                <div class="flex flex-col bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+                    <video autoplay controls playsinline muted loop class="w-full object-cover bg-black">
+                        <source src="static/30/ADf/ADf_EX4D_30.mp4" type="video/mp4">
+                    </video>
+                </div>
+                <div class="flex flex-col bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+                    <video autoplay controls playsinline muted loop class="w-full object-cover bg-black">
+                        <source src="static/30/ADf/ADf30.mp4" type="video/mp4">
+                    </video>
+                </div>
+                <div class="flex flex-col bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+                    <video autoplay controls playsinline muted loop class="w-full object-cover bg-black">
+                        <source src="static/30/Bearb/Bearb.mp4" type="video/mp4">
+                    </video>
+                </div>
+                <div class="flex flex-col bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+                    <video autoplay controls playsinline muted loop class="w-full object-cover bg-black">
+                        <source src="static/30/Bearb/Bearb_EX4D_30.mp4" type="video/mp4">
+                    </video>
+                </div>
+                <div class="flex flex-col bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+                    <video autoplay controls playsinline muted loop class="w-full object-cover bg-black">
+                        <source src="static/30/Bearb/Bearb30.mp4" type="video/mp4">
+                    </video>
+                </div>
+                <div class="flex flex-col bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+                    <video autoplay controls playsinline muted loop class="w-full object-cover bg-black">
+                        <source src="static/30/Cup/Cup.mp4" type="video/mp4">
+                    </video>
+                </div>
+                <div class="flex flex-col bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+                    <video autoplay controls playsinline muted loop class="w-full object-cover bg-black">
+                        <source src="static/30/Cup/Cup_EX4D_30.mp4" type="video/mp4">
+                    </video>
+                </div>
+                <div class="flex flex-col bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+                    <video autoplay controls playsinline muted loop class="w-full object-cover bg-black">
+                        <source src="static/30/Cup/Cup30.mp4" type="video/mp4">
+                    </video>
+                </div>
+                <div class="flex flex-col bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+                    <video autoplay controls playsinline muted loop class="w-full object-cover bg-black">
+                        <source src="static/30/Dogb/Dogb.mp4" type="video/mp4">
+                    </video>
+                </div>
+                <div class="flex flex-col bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+                    <video autoplay controls playsinline muted loop class="w-full object-cover bg-black">
+                        <source src="static/30/Dogb/Dogb_EX4D_30.mp4" type="video/mp4">
+                    </video>
+                </div>
+                <div class="flex flex-col bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+                    <video autoplay controls playsinline muted loop class="w-full object-cover bg-black">
+                        <source src="static/30/Dogb/Dogb30.mp4" type="video/mp4">
+                    </video>
+                </div>
+                <div class="flex flex-col bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+                    <video autoplay controls playsinline muted loop class="w-full object-cover bg-black">
+                        <source src="static/30/Drogon/Drogon.mp4" type="video/mp4">
+                    </video>
+                </div>
+                <div class="flex flex-col bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+                    <video autoplay controls playsinline muted loop class="w-full object-cover bg-black">
+                        <source src="static/30/Drogon/Drogon_EX4D_30.mp4" type="video/mp4">
+                    </video>
+                </div>
+                <div class="flex flex-col bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+                    <video autoplay controls playsinline muted loop class="w-full object-cover bg-black">
+                        <source src="static/30/Drogon/Drogon30.mp4" type="video/mp4">
+                    </video>
+                </div>
+                <div class="flex flex-col bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+                    <video autoplay controls playsinline muted loop class="w-full object-cover bg-black">
+                        <source src="static/30/Hand/Hand.mp4" type="video/mp4">
+                    </video>
+                </div>
+                <div class="flex flex-col bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+                    <video autoplay controls playsinline muted loop class="w-full object-cover bg-black">
+                        <source src="static/30/Hand/Hand_EX4D_30.mp4" type="video/mp4">
+                    </video>
+                </div>
+                <div class="flex flex-col bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+                    <video autoplay controls playsinline muted loop class="w-full object-cover bg-black">
+                        <source src="static/30/Hand/Hand30.mp4" type="video/mp4">
+                    </video>
+                </div>
+                <div class="flex flex-col bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+                    <video autoplay controls playsinline muted loop class="w-full object-cover bg-black">
+                        <source src="static/30/Labubu/Labubu.mp4" type="video/mp4">
+                    </video>
+                </div>
+                <div class="flex flex-col bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+                    <video autoplay controls playsinline muted loop class="w-full object-cover bg-black">
+                        <source src="static/30/Labubu/Labubu_EX4D_30.mp4" type="video/mp4">
+                    </video>
+                </div>
+                <div class="flex flex-col bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+                    <video autoplay controls playsinline muted loop class="w-full object-cover bg-black">
+                        <source src="static/30/Labubu/Labubu30.mp4" type="video/mp4">
+                    </video>
+                </div>
+                <div class="flex flex-col bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+                    <video autoplay controls playsinline muted loop class="w-full object-cover bg-black">
+                        <source src="static/30/Student/Student.mp4" type="video/mp4">
+                    </video>
+                </div>
+                <div class="flex flex-col bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+                    <video autoplay controls playsinline muted loop class="w-full object-cover bg-black">
+                        <source src="static/30/Student/Student_EX4D_30.mp4" type="video/mp4">
+                    </video>
+                </div>
+                <div class="flex flex-col bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+                    <video autoplay controls playsinline muted loop class="w-full object-cover bg-black">
+                        <source src="static/30/Student/Student30.mp4" type="video/mp4">
+                    </video>
+                </div>
+            </div>
+
+        </section>
+
+
+        <!-- ========================================== -->
+        <!-- 180               -->
+        <!-- ========================================== -->
+        <section class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="text-center mb-6">
+                <h2 class="text-3xl md:text-4xl font-bold text-gray-900 mb-4 tracking-tight">
+                    180° Visualization
+                </h2>
+            </div>
+
+            <div class="grid grid-cols-3 gap-4 text-xs uppercase tracking-widest text-gray-500 mb-3">
+                <span class="text-center font-bold">Wan2.1</span>
+                <span class="text-center font-bold">EX-4D</span>
+                <span class="text-center font-bold text-black">Light4D</span>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
+                <div class="flex flex-col bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+                    <video autoplay controls playsinline muted loop class="w-full object-cover bg-black">
+                        <source src="static/180/ADc/ADc.mp4" type="video/mp4">
+                    </video>
+                </div>
+                <div class="flex flex-col bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+                    <video autoplay controls playsinline muted loop class="w-full object-cover bg-black">
+                        <source src="static/180/ADc/ADc_EX4D_180.mp4" type="video/mp4">
+                    </video>
+                </div>
+                <div class="flex flex-col bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+                    <video autoplay controls playsinline muted loop class="w-full object-cover bg-black">
+                        <source src="static/180/ADc/ADc180.mp4" type="video/mp4">
+                    </video>
+                </div>
+                <div class="flex flex-col bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+                    <video autoplay controls playsinline muted loop class="w-full object-cover bg-black">
+                        <source src="static/180/Forest/Forest.mp4" type="video/mp4">
+                    </video>
+                </div>
+                <div class="flex flex-col bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+                    <video autoplay controls playsinline muted loop class="w-full object-cover bg-black">
+                        <source src="static/180/Forest/Forest_EX4D_180.mp4" type="video/mp4">
+                    </video>
+                </div>
+                <div class="flex flex-col bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+                    <video autoplay controls playsinline muted loop class="w-full object-cover bg-black">
+                        <source src="static/180/Forest/Forest180.mp4" type="video/mp4">
+                    </video>
+                </div>
+                <div class="flex flex-col bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+                    <video autoplay controls playsinline muted loop class="w-full object-cover bg-black">
+                        <source src="static/180/Plane/Plane.mp4" type="video/mp4">
+                    </video>
+                </div>
+                <div class="flex flex-col bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+                    <video autoplay controls playsinline muted loop class="w-full object-cover bg-black">
+                        <source src="static/180/Plane/Plane_EX4D_180.mp4" type="video/mp4">
+                    </video>
+                </div>
+                <div class="flex flex-col bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+                    <video autoplay controls playsinline muted loop class="w-full object-cover bg-black">
+                        <source src="static/180/Plane/Plane180.mp4" type="video/mp4">
+                    </video>
+                </div>
+            </div>
+
+        </section>
+
+
+        <!-- ========================================== -->
+        <!-- different angles              -->
+        <!-- ========================================== -->
+        <section class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="text-center mb-6">
+                <h2 class="text-3xl md:text-4xl font-bold text-gray-900 mb-4 tracking-tight">
+                    Different Angles
+                </h2>
+            </div>
+
+            <div class="grid grid-cols-4 gap-4 text-xs uppercase tracking-widest text-gray-500 mb-3">
+                <span class="text-center font-bold">Wan2.1</span>
+                <span class="text-center font-bold text-black">30°</span>
+                <span class="text-center font-bold text-black">90°</span>
+                <span class="text-center font-bold text-black">180°</span>
+            </div>
+
+            <div class="space-y-10">
+                <div class="grid grid-cols-1 md:grid-cols-[240px_repeat(3,minmax(0,1fr))] gap-6 items-center">
+                    <div class="flex items-center justify-center">
+                        <div class="flex flex-col bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden w-full">
+                            <video autoplay controls playsinline muted loop class="w-full object-cover bg-black">
+                                <source src="static/different_angle/Bear/Bear.mp4" type="video/mp4">
+                            </video>
+                        </div>
+                    </div>
+                    <div class="flex flex-col gap-6 justify-center">
+                        <div class="flex flex-col bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+                            <video autoplay controls playsinline muted loop class="w-full object-cover bg-black">
+                                <source src="static/different_angle/Bear/Bear_EX4D_30.mp4" type="video/mp4">
+                            </video>
+                        </div>
+                        <div class="flex flex-col bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+                            <video autoplay controls playsinline muted loop class="w-full object-cover bg-black">
+                                <source src="static/different_angle/Bear/Bear30.mp4" type="video/mp4">
+                            </video>
+                        </div>
+                    </div>
+                    <div class="flex flex-col gap-6 justify-center">
+                        <div class="flex flex-col bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+                            <video autoplay controls playsinline muted loop class="w-full object-cover bg-black">
+                                <source src="static/different_angle/Bear/Bear_EX4D_90.mp4" type="video/mp4">
+                            </video>
+                        </div>
+                        <div class="flex flex-col bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+                            <video autoplay controls playsinline muted loop class="w-full object-cover bg-black">
+                                <source src="static/different_angle/Bear/Bear90.mp4" type="video/mp4">
+                            </video>
+                        </div>
+                    </div>
+                    <div class="flex flex-col gap-6 justify-center">
+                        <div class="flex flex-col bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+                            <video autoplay controls playsinline muted loop class="w-full object-cover bg-black">
+                                <source src="static/different_angle/Bear/Bear_EX4D_180.mp4" type="video/mp4">
+                            </video>
+                        </div>
+                        <div class="flex flex-col bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+                            <video autoplay controls playsinline muted loop class="w-full object-cover bg-black">
+                                <source src="static/different_angle/Bear/Bear180.mp4" type="video/mp4">
+                            </video>
+                        </div>
+                    </div>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-[240px_repeat(3,minmax(0,1fr))] gap-6 items-center">
+                    <div class="flex items-center justify-center">
+                        <div class="flex flex-col bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden w-full">
+                            <video autoplay controls playsinline muted loop class="w-full object-cover bg-black">
+                                <source src="static/different_angle/Bird/Bird.mp4" type="video/mp4">
+                            </video>
+                        </div>
+                    </div>
+                    <div class="flex flex-col gap-6 justify-center">
+                        <div class="flex flex-col bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+                            <video autoplay controls playsinline muted loop class="w-full object-cover bg-black">
+                                <source src="static/different_angle/Bird/Bird_EX4D_30.mp4" type="video/mp4">
+                            </video>
+                        </div>
+                        <div class="flex flex-col bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+                            <video autoplay controls playsinline muted loop class="w-full object-cover bg-black">
+                                <source src="static/different_angle/Bird/Bird30.mp4" type="video/mp4">
+                            </video>
+                        </div>
+                    </div>
+                    <div class="flex flex-col gap-6 justify-center">
+                        <div class="flex flex-col bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+                            <video autoplay controls playsinline muted loop class="w-full object-cover bg-black">
+                                <source src="static/different_angle/Bird/Bird_EX4D_90.mp4" type="video/mp4">
+                            </video>
+                        </div>
+                        <div class="flex flex-col bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+                            <video autoplay controls playsinline muted loop class="w-full object-cover bg-black">
+                                <source src="static/different_angle/Bird/Bird90.mp4" type="video/mp4">
+                            </video>
+                        </div>
+                    </div>
+                    <div class="flex flex-col gap-6 justify-center">
+                        <div class="flex flex-col bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+                            <video autoplay controls playsinline muted loop class="w-full object-cover bg-black">
+                                <source src="static/different_angle/Bird/Bird_EX4D_180.mp4" type="video/mp4">
+                            </video>
+                        </div>
+                        <div class="flex flex-col bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+                            <video autoplay controls playsinline muted loop class="w-full object-cover bg-black">
+                                <source src="static/different_angle/Bird/Bird180.mp4" type="video/mp4">
+                            </video>
+                        </div>
+                    </div>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-[240px_repeat(3,minmax(0,1fr))] gap-6 items-center">
+                    <div class="flex items-center justify-center">
+                        <div class="flex flex-col bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden w-full">
+                            <video autoplay controls playsinline muted loop class="w-full object-cover bg-black">
+                                <source src="static/different_angle/Dog/Dog.mp4" type="video/mp4">
+                            </video>
+                        </div>
+                    </div>
+                    <div class="flex flex-col gap-6 justify-center">
+                        <div class="flex flex-col bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+                            <video autoplay controls playsinline muted loop class="w-full object-cover bg-black">
+                                <source src="static/different_angle/Dog/Dog_EX4D_30.mp4" type="video/mp4">
+                            </video>
+                        </div>
+                        <div class="flex flex-col bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+                            <video autoplay controls playsinline muted loop class="w-full object-cover bg-black">
+                                <source src="static/different_angle/Dog/Dog30.mp4" type="video/mp4">
+                            </video>
+                        </div>
+                    </div>
+                    <div class="flex flex-col gap-6 justify-center">
+                        <div class="flex flex-col bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+                            <video autoplay controls playsinline muted loop class="w-full object-cover bg-black">
+                                <source src="static/different_angle/Dog/Dog_EX4D_90.mp4" type="video/mp4">
+                            </video>
+                        </div>
+                        <div class="flex flex-col bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+                            <video autoplay controls playsinline muted loop class="w-full object-cover bg-black">
+                                <source src="static/different_angle/Dog/Dog90.mp4" type="video/mp4">
+                            </video>
+                        </div>
+                    </div>
+                    <div class="flex flex-col gap-6 justify-center">
+                        <div class="flex flex-col bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+                            <video autoplay controls playsinline muted loop class="w-full object-cover bg-black">
+                                <source src="static/different_angle/Dog/Dog_EX4D_180.mp4" type="video/mp4">
+                            </video>
+                        </div>
+                        <div class="flex flex-col bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+                            <video autoplay controls playsinline muted loop class="w-full object-cover bg-black">
+                                <source src="static/different_angle/Dog/Dog180.mp4" type="video/mp4">
+                            </video>
+                        </div>
+                    </div>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-[240px_repeat(3,minmax(0,1fr))] gap-6 items-center">
+                    <div class="flex items-center justify-center">
+                        <div class="flex flex-col bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden w-full">
+                            <video autoplay controls playsinline muted loop class="w-full object-cover bg-black">
+                                <source src="static/different_angle/Sea/Sea.mp4" type="video/mp4">
+                            </video>
+                        </div>
+                    </div>
+                    <div class="flex flex-col gap-6 justify-center">
+                        <div class="flex flex-col bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+                            <video autoplay controls playsinline muted loop class="w-full object-cover bg-black">
+                                <source src="static/different_angle/Sea/Sea_EX4D_30.mp4" type="video/mp4">
+                            </video>
+                        </div>
+                        <div class="flex flex-col bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+                            <video autoplay controls playsinline muted loop class="w-full object-cover bg-black">
+                                <source src="static/different_angle/Sea/Sea30.mp4" type="video/mp4">
+                            </video>
+                        </div>
+                    </div>
+                    <div class="flex flex-col gap-6 justify-center">
+                        <div class="flex flex-col bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+                            <video autoplay controls playsinline muted loop class="w-full object-cover bg-black">
+                                <source src="static/different_angle/Sea/Sea_EX4D_90.mp4" type="video/mp4">
+                            </video>
+                        </div>
+                        <div class="flex flex-col bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+                            <video autoplay controls playsinline muted loop class="w-full object-cover bg-black">
+                                <source src="static/different_angle/Sea/Sea90.mp4" type="video/mp4">
+                            </video>
+                        </div>
+                    </div>
+                    <div class="flex flex-col gap-6 justify-center">
+                        <div class="flex flex-col bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+                            <video autoplay controls playsinline muted loop class="w-full object-cover bg-black">
+                                <source src="static/different_angle/Sea/Sea_EX4D_180.mp4" type="video/mp4">
+                            </video>
+                        </div>
+                        <div class="flex flex-col bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+                            <video autoplay controls playsinline muted loop class="w-full object-cover bg-black">
+                                <source src="static/different_angle/Sea/Sea180.mp4" type="video/mp4">
+                            </video>
+                        </div>
+                    </div>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-[240px_repeat(3,minmax(0,1fr))] gap-6 items-center">
+                    <div class="flex items-center justify-center">
+                        <div class="flex flex-col bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden w-full">
+                            <video autoplay controls playsinline muted loop class="w-full object-cover bg-black">
+                                <source src="static/different_angle/Woman/Woman.mp4" type="video/mp4">
+                            </video>
+                        </div>
+                    </div>
+                    <div class="flex flex-col gap-6 justify-center">
+                        <div class="flex flex-col bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+                            <video autoplay controls playsinline muted loop class="w-full object-cover bg-black">
+                                <source src="static/different_angle/Woman/Woman_EX4D_30.mp4" type="video/mp4">
+                            </video>
+                        </div>
+                        <div class="flex flex-col bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+                            <video autoplay controls playsinline muted loop class="w-full object-cover bg-black">
+                                <source src="static/different_angle/Woman/Woman30.mp4" type="video/mp4">
+                            </video>
+                        </div>
+                    </div>
+                    <div class="flex flex-col gap-6 justify-center">
+                        <div class="flex flex-col bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+                            <video autoplay controls playsinline muted loop class="w-full object-cover bg-black">
+                                <source src="static/different_angle/Woman/Woman_EX4D_90.mp4" type="video/mp4">
+                            </video>
+                        </div>
+                        <div class="flex flex-col bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+                            <video autoplay controls playsinline muted loop class="w-full object-cover bg-black">
+                                <source src="static/different_angle/Woman/Woman90.mp4" type="video/mp4">
+                            </video>
+                        </div>
+                    </div>
+                    <div class="flex flex-col gap-6 justify-center">
+                        <div class="flex flex-col bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+                            <video autoplay controls playsinline muted loop class="w-full object-cover bg-black">
+                                <source src="static/different_angle/Woman/Woman_EX4D_180.mp4" type="video/mp4">
+                            </video>
+                        </div>
+                        <div class="flex flex-col bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+                            <video autoplay controls playsinline muted loop class="w-full object-cover bg-black">
+                                <source src="static/different_angle/Woman/Woman180.mp4" type="video/mp4">
+                            </video>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </section>
+
+
+
+        <!-- Method -->
+        <section class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+             <div class="flex items-center gap-4 mb-8">
+                <div class="h-px bg-gray-200 flex-1"></div>
+                <h2 class="text-2xl font-bold text-gray-800 uppercase tracking-wider">Method</h2>
+                <div class="h-px bg-gray-200 flex-1"></div>
+            </div>
+            
+            <div class="bg-white rounded-3xl shadow-sm border border-gray-200 p-6 md:p-8">
+                <img src="./static/images/pipeline.png" class="w-full h-auto mb-6 rounded-lg" alt="" />
+                <div class="text-gray-600 text-justify leading-relaxed">
+                    <p class="text-sm font-semibold text-gray-700">
+                        Overview of the Light4D framework. Our training-free approach employs a time-aware paradigm in a latent flow-matching process. Using a multi-phase adaptive schedule λ(t), we prioritize 3D geometric completion via the EX-4D backbone before injecting illumination cues through IC-Light.
+                    </p>
+                </div>
+            </div>
+
+             <div class="bg-white rounded-3xl shadow-sm border border-gray-200 p-6 md:p-8">
+                <img src="./static/images/TCA.png" class="w-full h-auto mb-6 rounded-lg" alt="" />
+                <div class="text-gray-600 text-justify leading-relaxed">
+                    <p class="text-sm font-semibold text-gray-700">
+                        Design of Temporal Consistent Attention (TCA). TCA enforces temporal coherence through a dual-path mechanism that interpolates between standard self-attention (Path A) for frame-specific structure and a consistent path (Path B) that regularizes appearance context via Gaussian-weighted sliding window aggregation.
+                    </p>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-white border-t border-gray-100 py-12">
+        <div class="max-w-5xl mx-auto px-4 text-center">
+            <div class="flex justify-center space-x-6 mb-6">
+                <a href="https://arxiv.org/abs/2602.11769" target="_blank" rel="noopener noreferrer" class="text-gray-400 hover:text-primary transition-colors text-2xl">
+                    <i class="fas fa-file-pdf"></i>
+                </a>
+                <a href="https://github.com/AIGeeksGroup/Light4D" class="text-gray-400 hover:text-primary transition-colors text-2xl">
+                    <i class="fab fa-github"></i>
+                </a>
+            </div>
+            <p class="text-sm text-gray-500 mb-2">
+                Light4D: Training-Free Extreme Viewpoint 4D Video Relighting
+            </p>
+        </div>
+    </footer>
+    
+    <!-- Scripts -->
+    <script>
+        // Playground Logic
+        function changePlaygroundVideo(btn, videoSrc) {
+            const video = document.getElementById('playground-video');
+            const overlay = document.getElementById('video-overlay');
+            const icon = overlay.querySelector('i');
+            const buttons = document.querySelectorAll('.playground-btn');
+
+            // 1. Update Buttons State
+            buttons.forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+
+            // 2. Transition Effect
+            overlay.classList.remove('bg-opacity-0');
+            overlay.classList.add('bg-opacity-10'); // Flash a bit dark
+            icon.classList.remove('opacity-0'); // Show spinner
+
+            setTimeout(() => {
+                video.src = videoSrc;
+                video.play();
+                
+                // Fade out overlay after a short delay to ensure video loads
+                video.onloadeddata = () => {
+                     overlay.classList.remove('bg-opacity-10');
+                     overlay.classList.add('bg-opacity-0');
+                     icon.classList.add('opacity-0');
+                };
+                
+                // Fallback if event doesn't fire fast enough
+                setTimeout(() => {
+                     overlay.classList.remove('bg-opacity-10');
+                     overlay.classList.add('bg-opacity-0');
+                     icon.classList.add('opacity-0');
+                }, 500);
+
+            }, 200);
+        }
+
+        // Gallery Data and Logic
+        const galleryData = {
+            'carousel-dynamic': [
+                { src: "./static/videos/dynamic-0.mp4" },
+                { src: "./static/videos/dynamic-1.mp4" },
+                { src: "./static/videos/dynamic-2.mp4" },
+                { src: "./static/videos/dynamic-3.mp4" },
+                { src: "./static/videos/dynamic-4.mp4" },
+                { src: "./static/videos/dynamic-5.mp4" },
+                { src: "./static/videos/dynamic-6.mp4" },
+                { src: "./static/videos/dynamic-7.mp4" },
+                { src: "./static/videos/dynamic-8.mp4" },
+                { src: "./static/videos/dynamic-9.mp4" },
+                { src: "./static/videos/dynamic-10.mp4" },
+                { src: "./static/videos/dynamic-11.mp4" },
+                { src: "./static/videos/dynamic-12.mp4" },
+                { src: "./static/videos/dynamic-13.mp4" }
+            ],
+            'carousel-spatial': [
+                { src: "./static/videos/static-0.mp4" },
+                { src: "./static/videos/static-1.mp4" },
+                { src: "./static/videos/static-2.mp4" },
+                { src: "./static/videos/static-3.mp4" },
+                { src: "./static/videos/static-4.mp4" },
+                { src: "./static/videos/static-5.mp4" },
+                { src: "./static/videos/static-6.mp4" },
+                { src: "./static/videos/static-7.mp4" },
+                { src: "./static/videos/static-8.mp4" },
+                { src: "./static/videos/static-9.mp4" },
+                { src: "./static/videos/static-10.mp4" },
+                { src: "./static/videos/static-11.mp4" },
+                { src: "./static/videos/static-12.mp4" },
+                { src: "./static/videos/static-13.mp4" },
+                { src: "./static/videos/static-14.mp4" },
+                { src: "./static/videos/static-15.mp4" },
+                { src: "./static/videos/static-16.mp4" },
+                { src: "./static/videos/static-17.mp4" }
+            ],
+            'carousel-camera': [
+                { src: "./static/videos/long-0.mp4" },
+                { src: "./static/videos/long-1.mp4" },
+                { src: "./static/videos/long-2.mp4" },
+                { src: "./static/videos/long-3.mp4" }
+            ]
+        };
+
+        class Carousel {
+            constructor(containerId, videos) {
+                this.container = document.getElementById(containerId);
+                
+                let renderVideos = [...videos];
+                if (renderVideos.length === 1) {
+                    renderVideos = [null, renderVideos[0], null];
+                    this.originalLength = 1;
+                    this.currentIndex = 1; 
+                } else if (renderVideos.length === 2) {
+                    renderVideos = [null, ...renderVideos, null]; 
+                    this.originalLength = 2;
+                    this.currentIndex = 1; 
+                } else {
+                    renderVideos = [null, ...renderVideos, null];
+                    this.originalLength = videos.length;
+                    this.currentIndex = 2; 
+                }
+                
+                this.videos = renderVideos;
+                this.cards = [];
+                this.init();
+            }
+
+            init() {
+                this.container.innerHTML = `
+                    <button class="prev-btn absolute left-2 md:left-4 z-40 p-3 bg-white/80 backdrop-blur-md text-primary rounded-full shadow-lg hover:bg-white transition-all transform hover:scale-110 focus:outline-none">
+                        <i class="fas fa-chevron-left text-lg"></i>
+                    </button>
+                    <button class="next-btn absolute right-2 md:right-4 z-40 p-3 bg-white/80 backdrop-blur-md text-primary rounded-full shadow-lg hover:bg-white transition-all transform hover:scale-110 focus:outline-none">
+                        <i class="fas fa-chevron-right text-lg"></i>
+                    </button>
+                    <div class="track relative w-full h-full"></div>
+                `;
+
+                this.track = this.container.querySelector('.track');
+                
+                this.videos.forEach(vid => {
+                    const card = document.createElement('div');
+                    
+                    if (vid === null) {
+                        card.className = 'gallery-card empty'; 
+                    } else {
+                        card.className = 'gallery-card bg-black';
+                        card.innerHTML = `
+                            <video loop muted playsinline controls class="w-full h-full object-cover">
+                                <source src="${vid.src}" type="video/mp4">
+                            </video>
+                        `;
+                    }
+                    this.track.appendChild(card);
+                    this.cards.push(card);
+                });
+
+                this.container.querySelector('.prev-btn').onclick = () => this.move(-1);
+                this.container.querySelector('.next-btn').onclick = () => this.move(1);
+
+                this.update();
+            }
+
+            update() {
+                this.cards.forEach((card, i) => {
+                    const offset = i - this.currentIndex;
+                    if (card.classList.contains('empty')) {
+                        card.className = 'gallery-card empty';
+                    } else {
+                        card.className = 'gallery-card bg-black';
+                    }
+                    
+                    const video = card.querySelector('video');
+
+                    if (offset === 0) {
+                        card.classList.add('active');
+                        if(video) video.play();
+                    } else if (offset === -1) {
+                        card.classList.add('left');
+                        if(video) video.play(); 
+                    } else if (offset === 1) {
+                        card.classList.add('right');
+                        if(video) video.play();
+                    } else if (offset < -1) {
+                        card.classList.add('hidden-left');
+                        if(video) video.pause();
+                    } else {
+                        card.classList.add('hidden-right');
+                        if(video) video.pause();
+                    }
+                });
+            }
+
+            move(dir) {
+                const nextIndex = this.currentIndex + dir;
+                const minIndex = 1;
+                const maxIndex = this.videos.length - 2; 
+
+                if (nextIndex < minIndex) {
+                    this.triggerBounce('prev');
+                    return;
+                }
+                if (nextIndex > maxIndex) {
+                    this.triggerBounce('next');
+                    return;
+                }
+
+                this.currentIndex = nextIndex;
+                this.update();
+            }
+
+            triggerBounce(direction) {
+                this.track.classList.remove('animate-bounce-prev', 'animate-bounce-next');
+                void this.track.offsetWidth;
+                if (direction === 'prev') {
+                    this.track.classList.add('animate-bounce-prev');
+                } else {
+                    this.track.classList.add('animate-bounce-next');
+                }
+                setTimeout(() => {
+                    this.track.classList.remove('animate-bounce-prev', 'animate-bounce-next');
+                }, 400);
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            new Carousel('carousel-dynamic', galleryData['carousel-dynamic']);
+            new Carousel('carousel-spatial', galleryData['carousel-spatial']);
+            new Carousel('carousel-camera', galleryData['carousel-camera']);
+        });
+    </script>
+
+</body>
+</html>
