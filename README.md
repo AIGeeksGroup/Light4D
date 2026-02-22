@@ -14,6 +14,21 @@ This is the official repository for the paper:
 
 Light4D is a novel training-free framework designed to synthesize consistent 4D videos under target illumination, even under extreme viewpoint changes.
 
+<<<<<<< Updated upstream
+=======
+## ✨ Demo Results
+
+<p align="center">
+  <img src="/figures/teaser.png" alt="Light4D Teaser" width="95%" />
+</p>
+
+## 🧩 Pipeline Overview
+
+<p align="center">
+  <img src="/figures/pipline.png" alt="Light4D Pipeline" width="95%" />
+</p>
+
+>>>>>>> Stashed changes
 
 ## 🔧 Installation
 ### Clone Repository
