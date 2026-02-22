@@ -19,15 +19,11 @@ Light4D is a novel training-free framework designed to synthesize consistent 4D 
 
 <p align="center">
   <img src="/figures/teaser.png" alt="Light4D Teaser" width="95%" />
-
+  
+  Light4D robustly handles extreme viewpoint changes and diverse lighting conditions while maintaining strict geometric-illumination consistency.
 </p>
 
-## 🧩 Pipeline Overview
 
-<p align="center">
-  <img src="/figures/pipline.png" alt="Light4D Pipeline" width="95%" />
-
-</p>
 
 
 
