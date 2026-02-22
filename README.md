@@ -10,7 +10,7 @@ Light4D is a novel training-free framework designed to synthesize consistent 4D 
 </div>
 <div>
 <div align="center">
-    <sup>1</sup>chool of Computer Science, Peking University&emsp;
+    <sup>1</sup>School of Computer Science, Peking University&emsp;
 
 </div>
 
