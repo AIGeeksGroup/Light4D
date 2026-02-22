@@ -3,10 +3,10 @@
 Light4D is a novel training-free framework designed to synthesize consistent 4D videos under target illumination, even under extreme viewpoint changes.
 
 <div align="center">
-    <a href='https://scholar.google.com.hk/citations?user=zSlYF4QAAAAJ&hl=zh-CN' target='_blank'>Zhenghuang Wu</a><sup>1,2,3</sup>&emsp;
+    <a href='https://scholar.google.com.hk/citations?user=zSlYF4QAAAAJ&hl=zh-CN' target='_blank'>Zhenghuang Wu</a><sup>1</sup>&emsp;
     <a href='www.linkedin.com/in/peterkc05' target='_blank'>Kang Chen</a><sup>1</sup>&emsp;       
-    <a href='https://steve-zeyu-zhang.github.io/' target='_blank'>Zeyu Zhang</a><sup>1,2,3</sup>&emsp;   
-    <a href='https://ha0tang.github.io/' target='_blank'>Hao Tang</a><sup>2</sup>&emsp;
+    <a href='https://steve-zeyu-zhang.github.io/' target='_blank'>Zeyu Zhang</a><sup>1</sup>&emsp;   
+    <a href='https://ha0tang.github.io/' target='_blank'>Hao Tang</a><sup>1</sup>&emsp;
 </div>
 <div>
 <div align="center">
