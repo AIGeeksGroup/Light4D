@@ -2,7 +2,7 @@
 
 This is the official repository for the paper:
 
-> **PartRAG: Retrieval-Augmented Part-Level 3D Generation and Editing**
+> **Light4D: Training-Free Extreme Viewpoint 4D Video Relighting**
 >
 > [Zhenghuang Wu](https://scholar.google.com/citations?user=zSlYF4QAAAAJ&hl=zh-CN)\*, [Kang Chen](https://scholar.google.com/citations?hl=en&user=yvWoPjAAAAAJ)\*, [Zeyu Zhang](https://steve-zeyu-zhang.github.io/)\*†, [Hao Tang](https://ha0tang.github.io/)‡
 >
