@@ -3,15 +3,18 @@
 Light4D is a novel training-free framework designed to synthesize consistent 4D videos under target illumination, even under extreme viewpoint changes.
 
 <div align="center">
-    <a href='https://scholar.google.com.hk/citations?user=zSlYF4QAAAAJ&hl=zh-CN' target='_blank'>Zhenghuang Wu</a><sup>1</sup>&emsp;
-    <a href='www.linkedin.com/in/peterkc05' target='_blank'>Kang Chen</a><sup>1</sup>&emsp;       
-    <a href='https://steve-zeyu-zhang.github.io/' target='_blank'>Zeyu Zhang</a><sup>1</sup>&emsp;   
-    <a href='https://ha0tang.github.io/' target='_blank'>Hao Tang</a><sup>1</sup>&emsp;
+  <a href="https://scholar.google.com/citations?user=zSlYF4QAAAAJ&hl=zh-CN" target="_blank"><strong>Zhenghuang Wu*</strong></a>&emsp;
+  <a href="https://scholar.google.com/citations?hl=en&user=yvWoPjAAAAAJ" target="_blank"><strong>Kang Chen*</strong></a>&emsp;
+  <a href="https://steve-zeyu-zhang.github.io/" target="_blank"><strong>Zeyu Zhang†</strong></a>&emsp;
+  <a href="https://ha0tang.github.io/" target="_blank"><strong>Hao Tang‡</strong></a>
 </div>
-<div>
-<div align="center">
-    <sup>1</sup>School of Computer Science, Peking University&emsp;
 
+<div align="center">
+  School of Computer Science, Peking University
+</div>
+
+<div align="center">
+  *Equal contribution. †Project lead. ‡Corresponding author: bjdxtanghao@gmail.com.
 </div>
 
 <p align="center">
