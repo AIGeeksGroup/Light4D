@@ -19,7 +19,6 @@ Light4D is a novel training-free framework designed to synthesize consistent 4D 
 
 <p align="center">
   <img src="/figures/teaser.png" alt="Light4D Teaser" width="95%" />
-<<<<<<< Updated upstream
 
 </p>
 
