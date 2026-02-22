@@ -1,30 +1,18 @@
 # Light4D: Training-Free Extreme Viewpoint 4D Video Relighting
 
+This is the official repository for the paper:
+
+> **PartRAG: Retrieval-Augmented Part-Level 3D Generation and Editing**
+>
+> [Zhenghuang Wu](https://scholar.google.com/citations?user=zSlYF4QAAAAJ&hl=zh-CN)\*, [Kang Chen](https://scholar.google.com/citations?hl=en&user=yvWoPjAAAAAJ)\*, [Zeyu Zhang](https://steve-zeyu-zhang.github.io/)\*†, [Hao Tang](https://ha0tang.github.io/)‡
+>
+> School of Computer Science, Peking University
+>
+> \*Equal contribution. †Project lead. ‡Corresponding author.
+>
+> ### [Paper](https://arxiv.org/abs/2602.11769) | [Website](https://aigeeksgroup.github.io/Light4D)  | [HF Paper](https://huggingface.co/papers/2602.11769)
+
 Light4D is a novel training-free framework designed to synthesize consistent 4D videos under target illumination, even under extreme viewpoint changes.
-
-<div align="center">
-  <a href="https://scholar.google.com/citations?user=zSlYF4QAAAAJ&hl=zh-CN" target="_blank"><strong>Zhenghuang Wu*</strong></a>&emsp;
-  <a href="https://scholar.google.com/citations?hl=en&user=yvWoPjAAAAAJ" target="_blank"><strong>Kang Chen*</strong></a>&emsp;
-  <a href="https://steve-zeyu-zhang.github.io/" target="_blank"><strong>Zeyu Zhang†</strong></a>&emsp;
-  <a href="https://ha0tang.github.io/" target="_blank"><strong>Hao Tang‡</strong></a>
-</div>
-
-<div align="center">
-  School of Computer Science, Peking University
-</div>
-
-<div align="center">
-  *Equal contribution. †Project lead. ‡Corresponding author: bjdxtanghao@gmail.com.
-</div>
-
-<p align="center">
-  <a href="https://arxiv.org/abs/2602.11769" target='_blank'>
-    <img src="http://img.shields.io/badge/arXiv-2602.11769-b31b1b?logo=arxiv&logoColor=b31b1b" alt="ArXiv" style="height:20px; vertical-align:middle;">
-  </a>
-  <a href="https://aigeeksgroup.github.io/Light4D/" target='_blank'>
-    <img src="https://img.shields.io/badge/Project-Page-red?logo=googlechrome&logoColor=red" alt="Project Page" style="height:20px; vertical-align:middle;">
-  </a>
-</p>
 
 
 ## 🔧 Installation
